@@ -13,6 +13,6 @@
 ### Итоговый прогноз
 Мой итоговый прогноз для одного из временных рядов представлен на рисунке.
  <p align="left">
-     <img src="https://github.com/akscent/Tlab/blob/main/ts/img/predict.PNG" />
+     <img src="https://raw.githubusercontent.com/akscent/internships/main/T_lab/ts/img/predict.PNG" />
  </p>
  
