@@ -1,17 +1,4 @@
----
-title: "Тестовое для стажировки в Отдел биостатистики и дата менеджмента"
-author: "Denis Irinyakov"
-output:
-  html_document:
-    df_print: paged
-  pdf_document: default
----
 
-```{r setup, include=FALSE}
-library(ggplot2)
-```
-
------------------------
 
 # Проверка гипотез с двумя группами лечения
 
