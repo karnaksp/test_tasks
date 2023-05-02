@@ -82,7 +82,6 @@ top_skills = pd.concat([skills_count_top, skills_freq_top, skills_a_salary_top, 
 top_skills['total_score'] = top_skills['rank'].sum(axis=1)
 top_skills.to_csv('top_skills.csv', index=False)
 
-df = df.iloc[:, :(len_skills+befor_len)]
 
 geolocator = Nominatim(user_agent="my_application")
 geocode = partial(geolocator.geocode, language="ru")
