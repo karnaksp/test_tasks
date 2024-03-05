@@ -319,16 +319,16 @@ class MarketDataProcessor:
                 f"rating_per_{time_column}_median"
             ),
             ((pl.col("total_rating_cat_mean").mean()) * 100).alias(
-                f"t_rating_per_{time_column}_mean"
+                f"tc_rating_per_{time_column}_mean"
             ),
             ((pl.col("total_rating_cat_mean").std()) * 100).alias(
-                f"t_rating_per_{time_column}_std"
+                f"tc_rating_per_{time_column}_std"
             ),
             ((pl.col("total_rating_cat_mean").sum())).alias(
-                f"t_rating_per_{time_column}_sum"
+                f"tc_rating_per_{time_column}_sum"
             ),
             ((pl.col("total_rating_cat_mean").median()) * 100).alias(
-                f"t_rating_per_{time_column}_median"
+                f"tc_rating_per_{time_column}_median"
             ),
         )
         return rating_per_time
