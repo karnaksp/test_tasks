@@ -124,7 +124,7 @@ class MarketDataProcessor:
             rating_per_month,
         )
 
-        if not history_flag
+        if not history_flag:
             train_set = self._join_target(train_set, val_data)
 
         # Преобразование в pandas DataFrame
