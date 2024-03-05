@@ -127,6 +127,11 @@ class MarketDataProcessor:
         if not history_flag:
             train_set = self._join_target(train_set, val_data)
 
+        # Преобразование в pandas DataFrame
+        train_set = train_set.to_pandas()
+        train_set["id"] = train_set["id"].str.replace("cart_", "")
+        train_set["category"] = train_set["category"].str.replace("cart_", "")
+
         return train_set
 
     def _separate_last_order(self):
@@ -354,7 +359,7 @@ class MarketDataProcessor:
         train_set = train_set.join(rating_per_month, on=["month_mean", "user_id"])
         train_set = train_set.join(
             rating_per_weekday,
-            on=["month_mean", "weekday_mean", "user_id"],
+            on=["weekday_mean", "user_id"],
         )
         return train_set
 
