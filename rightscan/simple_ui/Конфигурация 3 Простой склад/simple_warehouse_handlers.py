@@ -39,9 +39,8 @@ yellow_size = 0
 
 
 def menu_input(hashMap, _files=None, _data=None):
-    if hashMap.get("listener") == "menu":
-        if hashMap.get("menu") == "Птицы":
-            hashMap.put("ShowScreen", "Птицы")
+    if hashMap.get("listener") == "btn_add":
+        hashMap.put("ShowScreen", "ПтицыЗапись")
     elif hashMap.get("listener") == "ON_BACK_PRESSED":
         hashMap.put("FinishProcess", "")
     return hashMap
@@ -50,147 +49,6 @@ def menu_input(hashMap, _files=None, _data=None):
 def menu_on_start(hashMap, _files=None, _data=None):
     # hashMap.put("getfiles","")
     # hashMap.put("toast","test1")
-    return hashMap
-
-
-# ---------------------------Единицы
-def units_on_start(hashMap, _files=None, _data=None):
-
-    table = {
-        "type": "table",
-        "textsize": "20",
-        "columns": [{"name": "name", "header": "Наименование", "weight": "1"}],
-    }
-    # work with SQL via Pony ORM
-    query = select(c for c in SW_Units)
-    rows = []
-    for record in query:
-        rows.append({"name": record.name, "id": record.id})
-
-    table["rows"] = rows
-    hashMap.put("list", json.dumps(table))
-
-    return hashMap
-
-
-def units_input(hashMap, _files=None, _data=None):
-    global unit_id
-
-    if hashMap.get("listener") == "ON_BACK_PRESSED":
-        hashMap.put("ShowScreen", "Меню НСИ")
-
-    elif hashMap.get("listener") == "btn_add":
-        hashMap.put("name", "")
-        unit_id = -1
-        hashMap.put("ShowDialog", "ДиалогЕдиницы")
-        hashMap.put(
-            "ShowDialogStyle",
-            json.dumps(
-                {"title": "Добавление записи", "yes": "Сохранить", "no": "Отмена"}
-            ),
-        )
-
-    elif hashMap.get("listener") == "TableClick":
-
-        jrecord = json.loads(hashMap.get("selected_line"))
-        # hashMap.put("toast",str(jrecord['id']))
-        unit_id = jrecord["id"]
-        hashMap.put("name", jrecord["name"])
-
-        hashMap.put("ShowDialog", "ДиалогЕдиницы")
-        hashMap.put(
-            "ShowDialogStyle",
-            json.dumps(
-                {"title": "Добавление записи", "yes": "Сохранить", "no": "Отмена"}
-            ),
-        )
-    elif hashMap.get("event") == "onResultPositive":
-        # hashMap.put("toast",str(unit_id))
-        if unit_id < 0:
-            with db_session:
-                r = SW_Units(name=hashMap.get("name"))
-                commit()
-        else:
-            with db_session:
-                if hashMap.get("name") == "":  # удаление
-                    r = SW_Units[unit_id]
-                    r.delete()
-                else:  # редактирование
-                    r = SW_Units[unit_id]
-                    r.name = hashMap.get("name")
-
-                commit()
-
-    return hashMap
-
-
-# ---------------------------Группы
-def groups_on_start(hashMap, _files=None, _data=None):
-
-    table = {
-        "type": "table",
-        "textsize": "20",
-        "columns": [{"name": "name", "header": "Наименование", "weight": "1"}],
-    }
-    # work with SQL via Pony ORM
-    query = select(c for c in SW_Groups)
-    rows = []
-    for record in query:
-        rows.append({"name": record.name, "id": record.id})
-
-    table["rows"] = rows
-    hashMap.put("list", json.dumps(table))
-
-    return hashMap
-
-
-def groups_input(hashMap, _files=None, _data=None):
-    global unit_id
-
-    if hashMap.get("listener") == "ON_BACK_PRESSED":
-        hashMap.put("ShowScreen", "Меню НСИ")
-    elif hashMap.get("listener") == "btn_add":
-        hashMap.put("name", "")
-        unit_id = -1
-        hashMap.put("ShowDialog", "ДиалогГруппы")
-        hashMap.put(
-            "ShowDialogStyle",
-            json.dumps(
-                {"title": "Добавление записи", "yes": "Сохранить", "no": "Отмена"}
-            ),
-        )
-
-    elif hashMap.get("listener") == "TableClick":
-
-        jrecord = json.loads(hashMap.get("selected_line"))
-        # hashMap.put("toast",str(jrecord['id']))
-        unit_id = jrecord["id"]
-        hashMap.put("name", jrecord["name"])
-
-        hashMap.put("ShowDialog", "ДиалогГруппы")
-        hashMap.put(
-            "ShowDialogStyle",
-            json.dumps(
-                {"title": "Добавление записи", "yes": "Сохранить", "no": "Отмена"}
-            ),
-        )
-    elif hashMap.get("event") == "onResultPositive":
-        # hashMap.put("toast",str(unit_id))
-        if unit_id < 0:
-            with db_session:
-                r = SW_Groups(name=hashMap.get("name"))
-                commit()
-        else:
-            with db_session:
-                if hashMap.get("name") == "":  # удаление
-                    r = SW_Groups[unit_id]
-                    r.delete()
-                else:  # редактирование
-                    r = SW_Groups[unit_id]
-                    r.name = hashMap.get("name")
-
-                commit()
-
     return hashMap
 
 
