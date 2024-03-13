@@ -7,58 +7,12 @@ import datetime
 db = Database()
 db.bind(
     provider="sqlite",
-    filename="//data/data/ru.travelfood.simple_ui/databases/SimpleWMS",
+    filename="//data/data/ru.travelfood.simple_ui/databases/SimpleBirds",
     create_db=True,
 )
-
-
-class SW_Units(db.Entity):
-    name = Required(str)
-
-
-class SW_Groups(db.Entity):
-    name = Required(str)
 
 
 class SW_Birds(db.Entity):
     name = Required(str)
     color_feathers = Optional(str)
-
-
-class SW_Goods(db.Entity):
-    name = Required(str)
-    product_number = Optional(str)
-    barcode = Optional(str)
-    group = Optional(str)
-    unique = Optional(int)
-    unit = Required(str)
-    price = Optional(float)
-    pictures = Optional(Json)
-    created_at = Optional(datetime.datetime, sql_default="CURRENT_TIMESTAMP")
-
-
-class SW_Account(db.Entity):
-    sku = Required(int)
-    cell = Required(int)
-    qty = Required(float)
-
-    period = Optional(datetime.datetime, sql_default="CURRENT_TIMESTAMP")
-
-
-class SW_Inventory(db.Entity):
-    description = Required(str)
-    created_at = Optional(datetime.datetime, sql_default="CURRENT_TIMESTAMP")
-    lines = Set("SW_Inventory_line")
-
-
-class SW_Inventory_line(db.Entity):
-    sku = Required(int)
-    cell = Required(int)
-    qty = Required(float)
-    inventory = Required("SW_Inventory")
-
-    date = Optional(datetime.datetime, sql_default="CURRENT_TIMESTAMP")
-
-
-def init():
-    db.generate_mapping(create_tables=True)
+    image_path = Optional(str)
