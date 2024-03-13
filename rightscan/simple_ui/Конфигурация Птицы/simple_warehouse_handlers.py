@@ -29,14 +29,73 @@ class SW_Birds(db.Entity):
     image_path = Optional(str)
 
 
-unit_id = -1
-nom_id = -1
-cell_id = -1
-cells = {}
-cellid = None
-found = []
-green_size = 0
-yellow_size = 0
+with db_session:
+    # Добавление птиц в базу данных
+    SW_Birds(name="Попугай", color_feathers="Зеленый")
+    SW_Birds(name="Воробей", color_feathers="Серый")
+    SW_Birds(name="Голубь", color_feathers="Белый")
+
+    # Сохранение изменений в базе данных
+    commit()
+
+
+bird_id = -1
+
+
+def birds_on_show(hashMap, _files=None, _data=None):
+
+    table = {
+        "type": "table",
+        "textsize": "20",
+        "columns": [{"name": "name", "header": "Список", "weight": "1"}],
+    }
+    query = select(c for c in ui_global.SW_Birds)
+    rows = []
+    for record in query:
+        rows.append(
+            {
+                "name": record.name,
+                "color_feathers": record.color_feathers,
+                "image_path": record.image_path,
+                "id": record.id,
+            }
+        )
+
+    table["rows"] = rows
+    hashMap.put("list", json.dumps(table))
+
+    return hashMap
+
+
+def bird_input(hashMap, _files=None, _data=None):
+    global bird_id
+
+    if hashMap.get("listener") == "btn_add":
+        bird_id = -1
+        hashMap.put("name", "")
+        hashMap.put("color_feathers", "")
+        hashMap.put("ShowDialog", "InitDialog")
+        hashMap.put(
+            "ShowDialogStyle",
+            json.dumps(
+                {"title": "Добавление записи", "yes": "Сохранить", "no": "Отмена"}
+            ),
+        )
+    elif hashMap.get("event") == "onResultPositive":
+        if bird_id < 0:
+            with db_session:
+                r = SW_Birds(
+                    name=hashMap.get("name"),
+                    color_feathers=hashMap.get("color_feathers"),
+                )
+                commit()
+        else:
+            with db_session:
+                r = SW_Birds[bird_id]
+                r.name = hashMap.get("name")
+                r.color_feathers = hashMap.get("color_feathers")
+                commit()
+    return hashMap
 
 
 def list_of_birds_on_start(hashMap, _files=None, _data=None):
@@ -102,14 +161,14 @@ def units_on_start(hashMap, _files=None, _data=None):
 
 
 def units_input(hashMap, _files=None, _data=None):
-    global unit_id
+    global bird_id
 
     if hashMap.get("listener") == "ON_BACK_PRESSED":
         hashMap.put("ShowScreen", "Меню НСИ")
 
     elif hashMap.get("listener") == "btn_add":
         hashMap.put("name", "")
-        unit_id = -1
+        bird_id = -1
         hashMap.put("ShowDialog", "ДиалогЕдиницы")
         hashMap.put(
             "ShowDialogStyle",
@@ -122,7 +181,7 @@ def units_input(hashMap, _files=None, _data=None):
 
         jrecord = json.loads(hashMap.get("selected_line"))
         # hashMap.put("toast",str(jrecord['id']))
-        unit_id = jrecord["id"]
+        bird_id = jrecord["id"]
         hashMap.put("name", jrecord["name"])
 
         hashMap.put("ShowDialog", "ДиалогЕдиницы")
@@ -133,18 +192,18 @@ def units_input(hashMap, _files=None, _data=None):
             ),
         )
     elif hashMap.get("event") == "onResultPositive":
-        # hashMap.put("toast",str(unit_id))
-        if unit_id < 0:
+        # hashMap.put("toast",str(bird_id))
+        if bird_id < 0:
             with db_session:
                 r = ui_global.SW_Units(name=hashMap.get("name"))
                 commit()
         else:
             with db_session:
                 if hashMap.get("name") == "":  # удаление
-                    r = ui_global.SW_Units[unit_id]
+                    r = ui_global.SW_Units[bird_id]
                     r.delete()
                 else:  # редактирование
-                    r = ui_global.SW_Units[unit_id]
+                    r = ui_global.SW_Units[bird_id]
                     r.name = hashMap.get("name")
 
                 commit()
@@ -173,13 +232,13 @@ def groups_on_start(hashMap, _files=None, _data=None):
 
 
 def groups_input(hashMap, _files=None, _data=None):
-    global unit_id
+    global bird_id
 
     if hashMap.get("listener") == "ON_BACK_PRESSED":
         hashMap.put("ShowScreen", "Меню НСИ")
     elif hashMap.get("listener") == "btn_add":
         hashMap.put("name", "")
-        unit_id = -1
+        bird_id = -1
         hashMap.put("ShowDialog", "ДиалогГруппы")
         hashMap.put(
             "ShowDialogStyle",
@@ -192,7 +251,7 @@ def groups_input(hashMap, _files=None, _data=None):
 
         jrecord = json.loads(hashMap.get("selected_line"))
         # hashMap.put("toast",str(jrecord['id']))
-        unit_id = jrecord["id"]
+        bird_id = jrecord["id"]
         hashMap.put("name", jrecord["name"])
 
         hashMap.put("ShowDialog", "ДиалогГруппы")
@@ -203,18 +262,18 @@ def groups_input(hashMap, _files=None, _data=None):
             ),
         )
     elif hashMap.get("event") == "onResultPositive":
-        # hashMap.put("toast",str(unit_id))
-        if unit_id < 0:
+        # hashMap.put("toast",str(bird_id))
+        if bird_id < 0:
             with db_session:
                 r = ui_global.SW_Groups(name=hashMap.get("name"))
                 commit()
         else:
             with db_session:
                 if hashMap.get("name") == "":  # удаление
-                    r = ui_global.SW_Groups[unit_id]
+                    r = ui_global.SW_Groups[bird_id]
                     r.delete()
                 else:  # редактирование
-                    r = ui_global.SW_Groups[unit_id]
+                    r = ui_global.SW_Groups[bird_id]
                     r.name = hashMap.get("name")
 
                 commit()
