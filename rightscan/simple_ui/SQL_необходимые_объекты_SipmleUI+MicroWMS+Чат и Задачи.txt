@@ -1,0 +1,1432 @@
+--MicroWMS
+--последовательности
+CREATE SEQUENCE api.wms_orders_id_seq
+    INCREMENT 1
+    START 56
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+CREATE SEQUENCE api.inventory_operations_id_seq
+    INCREMENT 1
+    START 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+CREATE SEQUENCE api._orders_to_income_captions_id_seq
+    INCREMENT 1
+    START 10
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+CREATE SEQUENCE api._inventory_id_seq
+    INCREMENT 1
+    START 5
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+	
+CREATE SEQUENCE api.documents_id_seq
+    INCREMENT 1
+    START 13
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+
+--адреса
+CREATE TABLE api.wms_addresses
+(
+    id character varying(25) COLLATE pg_catalog."default" NOT NULL,
+    simple_order integer,
+    max_volume real,
+    max_qty real,
+    max_weight real,
+    barcode character varying(128) COLLATE pg_catalog."default",
+    caption character varying COLLATE pg_catalog."default",
+    not_for_picking boolean,
+    CONSTRAINT _addresses_pkey PRIMARY KEY (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_addresses
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_addresses TO admin WITH GRANT OPTION;
+
+GRANT ALL ON TABLE api.wms_addresses TO web_anon;
+
+--товары
+CREATE TABLE api.wms_goods
+(
+    id integer NOT NULL DEFAULT nextval('api.todos_id_seq'::regclass),
+    code character varying(50) COLLATE pg_catalog."default",
+    caption character varying(150) COLLATE pg_catalog."default",
+    weight real,
+    volume real,
+    unit_str character varying COLLATE pg_catalog."default",
+    barcode character varying(128) COLLATE pg_catalog."default",
+    CONSTRAINT goods_pkey PRIMARY KEY (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_goods
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_goods TO admin;
+
+GRANT ALL ON TABLE api.wms_goods TO web_anon;
+
+--разрешенные адреса для товаров(для размещения
+CREATE TABLE api.wms_allowed_places
+(
+    sku_id integer NOT NULL,
+    address character varying(25) COLLATE pg_catalog."default" NOT NULL,
+    CONSTRAINT sku_addr UNIQUE (sku_id, address),
+    CONSTRAINT address FOREIGN KEY (address)
+        REFERENCES api.wms_addresses (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE,
+    CONSTRAINT sku_id FOREIGN KEY (sku_id)
+        REFERENCES api.wms_goods (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_allowed_places
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_allowed_places TO admin WITH GRANT OPTION;
+
+GRANT ALL ON TABLE api.wms_allowed_places TO web_anon;
+
+--расстояния между адресами (для альтернативного варианта отбора)
+
+CREATE TABLE api.wms_distances
+(
+    address_source character varying(25) COLLATE pg_catalog."default",
+    address_dest character varying(25) COLLATE pg_catalog."default",
+    distance real,
+    CONSTRAINT addr_s FOREIGN KEY (address_source)
+        REFERENCES api.wms_addresses (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_distances
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_distances TO admin;
+
+GRANT ALL ON TABLE api.wms_distances TO web_anon;
+
+--триггерные процедуры
+CREATE FUNCTION api.wms_caculate_totals()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+AS $BODY$BEGIN 
+   LOCK TABLE api.wms_totals IN EXCLUSIVE MODE;
+
+    IF tg_op = 'INSERT' THEN
+        
+		INSERT INTO api.wms_totals (sku_id,address_id, total)
+VALUES
+	(
+		NEW.sku_id,
+		NEW.address_id,
+		NEW.qty
+	) 
+ON CONFLICT (sku_id,address_id) 
+DO
+		UPDATE
+	  SET total = api.wms_totals.total+NEW.qty;
+	
+	RETURN NEW;
+		
+    ELSE
+ 
+        RAISE EXCEPTION '% в wms_operations предполагаются только добавление', tg_op;
+    END IF;
+END;$BODY$;
+
+ALTER FUNCTION api.wms_caculate_totals()
+    OWNER TO admin;
+
+
+CREATE FUNCTION api.check_qty()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+AS $BODY$    BEGIN
+        
+        IF NEW.qty IS NULL or NEW.qty=0 THEN
+            RAISE EXCEPTION 'Количество не может быть пустым!';
+        END IF;
+   RETURN NEW;
+    END;
+$BODY$;
+
+ALTER FUNCTION api.check_qty()
+    OWNER TO admin;
+
+
+
+CREATE FUNCTION api.add_fact_to_order()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+AS $BODY$BEGIN
+   if(new.order_id>0 and new.qty>0) then
+   INSERT INTO
+        api.wms_orders(sku_id,qty_fact,order_id)
+        VALUES(new.sku_id,new.qty,new.order_id);
+
+          
+	End if;
+	 RETURN new;
+END;
+$BODY$;
+
+ALTER FUNCTION api.add_fact_to_order()
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.add_fact_to_order() TO admin;
+
+GRANT EXECUTE ON FUNCTION api.add_fact_to_order() TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.add_fact_to_order() TO web_anon;
+
+--операции и итоги
+CREATE TABLE api.wms_operations
+(
+    sku_id integer,
+    address_id character varying(25) COLLATE pg_catalog."default",
+    qty real,
+    created_at timestamp without time zone DEFAULT now(),
+    order_id integer,
+    no_order boolean,
+    "user" character varying(50) COLLATE pg_catalog."default",
+    to_operation integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_operations
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_operations TO admin;
+
+GRANT ALL ON TABLE api.wms_operations TO web_anon;
+
+-- Trigger: add_fact
+
+-- DROP TRIGGER add_fact ON api.wms_operations;
+
+CREATE TRIGGER add_fact
+    BEFORE INSERT
+    ON api.wms_operations
+    FOR EACH ROW
+    EXECUTE PROCEDURE api.add_fact_to_order();
+
+-- Trigger: calculate_total
+
+-- DROP TRIGGER calculate_total ON api.wms_operations;
+
+CREATE TRIGGER calculate_total
+    AFTER INSERT
+    ON api.wms_operations
+    FOR EACH ROW
+    EXECUTE PROCEDURE api.wms_caculate_totals();
+
+-- Trigger: check_qty
+
+-- DROP TRIGGER check_qty ON api.wms_operations;
+
+CREATE TRIGGER check_qty
+    BEFORE INSERT
+    ON api.wms_operations
+    FOR EACH ROW
+    EXECUTE PROCEDURE api.check_qty();
+
+
+CREATE TABLE api.wms_totals
+(
+    sku_id integer,
+    address_id character varying(25) COLLATE pg_catalog."default",
+    total real,
+    to_operation integer,
+    CONSTRAINT addr_sku UNIQUE (sku_id, address_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_totals
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_totals TO admin;
+
+GRANT ALL ON TABLE api.wms_totals TO web_anon;
+
+--распоряжения
+CREATE TABLE api.wms_orders_captions
+(
+    id integer NOT NULL DEFAULT nextval('api._orders_to_income_captions_id_seq'::regclass),
+    barcode character varying(128) COLLATE pg_catalog."default",
+    done boolean,
+    doc_date timestamp without time zone,
+    type character varying(50) COLLATE pg_catalog."default",
+    typeid integer,
+    doc_date_str character varying(20) COLLATE pg_catalog."default",
+    doc_number character varying(25) COLLATE pg_catalog."default",
+    contractor character varying(100) COLLATE pg_catalog."default",
+    description text COLLATE pg_catalog."default",
+    caption character varying(150) COLLATE pg_catalog."default",
+    action character varying(150) COLLATE pg_catalog."default",
+    CONSTRAINT wms_orders_captions_pkey PRIMARY KEY (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_orders_captions
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_orders_captions TO admin;
+
+GRANT ALL ON TABLE api.wms_orders_captions TO web_anon;
+
+
+CREATE TABLE api.wms_orders
+(
+    sku_id integer,
+    qty_plan real,
+    qty_fact real,
+    done boolean,
+    order_id integer,
+    id integer NOT NULL DEFAULT nextval('api.wms_orders_id_seq'::regclass),
+    line_id character varying(100) COLLATE pg_catalog."default",
+    CONSTRAINT wms_orders_pkey PRIMARY KEY (id),
+    CONSTRAINT line_order_id UNIQUE (order_id, line_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_orders
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_orders TO admin;
+
+GRANT ALL ON TABLE api.wms_orders TO web_anon;
+
+--инвентаризация
+CREATE TABLE api.wms_inventory
+(
+    id integer NOT NULL DEFAULT nextval('api._inventory_id_seq'::regclass),
+    done boolean,
+    created_at timestamp without time zone DEFAULT now(),
+    sku_id integer,
+    order_id integer,
+    "user" character varying(100) COLLATE pg_catalog."default",
+    address_id character varying(25) COLLATE pg_catalog."default",
+    qty real
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.wms_inventory
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.wms_inventory TO admin;
+
+GRANT ALL ON TABLE api.wms_inventory TO web_anon;
+
+--Последовательности
+ALTER SEQUENCE api.wms_orders_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api.wms_orders_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api.wms_orders_id_seq TO web_anon;
+
+ALTER SEQUENCE api.inventory_operations_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api.inventory_operations_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api.inventory_operations_id_seq TO web_anon;
+
+ALTER SEQUENCE api._orders_to_income_captions_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api._orders_to_income_captions_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api._orders_to_income_captions_id_seq TO web_anon;
+
+ALTER SEQUENCE api._inventory_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api._inventory_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api._inventory_id_seq TO web_anon;
+
+
+--необходимые представления
+CREATE OR REPLACE VIEW api.wms_address_filling
+ AS
+ SELECT t.address_id,
+    sum(t.total) * max(g.weight) AS weight,
+    sum(t.total) * max(g.volume) AS volume,
+    sum(t.total) AS qty
+   FROM api.wms_totals t
+     JOIN api.wms_goods g ON t.sku_id = g.id
+  GROUP BY t.address_id;
+
+ALTER TABLE api.wms_address_filling
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_address_filling TO admin;
+GRANT ALL ON TABLE api.wms_address_filling TO web_anon;
+
+CREATE OR REPLACE VIEW api.wms_balances
+ AS
+ SELECT t.nom,
+    t.sum,
+    t.sku_id,
+    t.address
+   FROM ( SELECT g.caption AS nom,
+            sum(t_1.total) AS sum,
+            g.id AS sku_id,
+            t_1.address_id AS address
+           FROM api.wms_totals t_1
+             JOIN api.wms_goods g ON t_1.sku_id = g.id
+          GROUP BY g.id, t_1.sku_id, g.caption, t_1.address_id) t
+  WHERE t.sum <> 0::double precision;
+
+ALTER TABLE api.wms_balances
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_balances TO admin;
+GRANT ALL ON TABLE api.wms_balances TO web_anon;
+
+CREATE OR REPLACE VIEW api.wms_inventory_sum
+ AS
+ SELECT wms_inventory.sku_id,
+    sum(wms_inventory.qty) AS sum,
+    wms_inventory.order_id
+   FROM api.wms_inventory
+  GROUP BY wms_inventory.order_id, wms_inventory.sku_id;
+
+ALTER TABLE api.wms_inventory_sum
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_inventory_sum TO admin;
+GRANT ALL ON TABLE api.wms_inventory_sum TO web_anon;
+
+CREATE OR REPLACE VIEW api.wms_orders_table
+ AS
+ SELECT g.caption AS nom,
+    g.code,
+    COALESCE(sum(o.qty_plan), 0::real) AS plan,
+    COALESCE(sum(o.qty_fact), 0::real) AS fact,
+    o.order_id
+   FROM api.wms_orders o
+     LEFT JOIN api.wms_goods g ON o.sku_id = g.id
+  GROUP BY g.caption, g.code, o.order_id;
+
+ALTER TABLE api.wms_orders_table
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_orders_table TO admin;
+GRANT ALL ON TABLE api.wms_orders_table TO web_anon;
+
+CREATE OR REPLACE VIEW api.wms_outgoing
+ AS
+ SELECT DISTINCT o.id,
+    o.doc_number,
+    o.caption,
+    o.contractor
+   FROM api.wms_operations op
+     JOIN api.wms_orders_captions o ON op.order_id = o.id
+  WHERE o.done = false OR o.done IS NULL AND op.address_id::text = 'ОТБОР'::text;
+
+ALTER TABLE api.wms_outgoing
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_outgoing TO admin;
+GRANT ALL ON TABLE api.wms_outgoing TO web_anon;
+
+CREATE OR REPLACE VIEW api.wms_outgoing_table
+ AS
+ SELECT sum(op.qty) AS qty,
+    op.order_id,
+    g.code,
+    g.caption
+   FROM api.wms_operations op
+     JOIN api.wms_goods g ON op.sku_id = g.id
+  WHERE op.address_id::text = 'ОТБОР'::text
+  GROUP BY g.code, g.caption, op.order_id;
+
+ALTER TABLE api.wms_outgoing_table
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_outgoing_table TO admin;
+GRANT ALL ON TABLE api.wms_outgoing_table TO web_anon;
+
+CREATE OR REPLACE VIEW api.wms_tasks
+ AS
+ SELECT wms_orders_captions.id,
+    wms_orders_captions.barcode,
+    wms_orders_captions.done,
+    wms_orders_captions.doc_date,
+    wms_orders_captions.type,
+    wms_orders_captions.typeid,
+    wms_orders_captions.doc_date_str,
+    wms_orders_captions.doc_number,
+    wms_orders_captions.contractor,
+    wms_orders_captions.description,
+    wms_orders_captions.caption,
+    wms_orders_captions.action,
+    wms_orders_captions.doc_number AS field1,
+    'Номер документа'::text AS field1caption,
+    wms_orders_captions.contractor AS field2,
+    'Поставщик'::text AS field2caption
+   FROM api.wms_orders_captions
+  WHERE NOT wms_orders_captions.done OR wms_orders_captions.done IS NULL;
+
+ALTER TABLE api.wms_tasks
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_tasks TO admin;
+GRANT ALL ON TABLE api.wms_tasks TO web_anon;
+
+
+--функция списка задач
+CREATE OR REPLACE FUNCTION api.get_tasks(
+	"user" character varying)
+    RETURNS SETOF api.wms_tasks 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+    --Передаю параметр котрый можно указать в условии на всякий случай,он не нужен пока
+	SELECT * FROM api.wms_tasks;
+$BODY$;
+
+ALTER FUNCTION api.get_tasks(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_tasks(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_tasks(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_tasks(character varying) TO web_anon;
+
+--фунции WMS
+CREATE OR REPLACE FUNCTION api.get_placement_orders(
+	user_id character varying)
+    RETURNS TABLE(sku_id integer, sku character varying, address character varying, qty real) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 5000
+    
+AS $BODY$DECLARE 
+    var_r record;
+	var_rest record;
+	tsku_id integer;
+	qty_to_placement real;
+	maximum_v integer;
+	maximum_w integer;
+	maximum_q integer;
+	c_w real;
+	c_v real;
+	divres integer;
+	
+	
+BEGIN
+	FOR var_r IN(select qt.sqty,qt.sku_id from (select sum(q.qty) as sqty,q.sku_id from (select * from api.wms_operations as OP where to_operation=1 and address_id=user_id  order by OP.created_at) as q group by q.sku_id) as qt inner join (select ttt.sku_id from api.wms_totals as ttt where address_id=user_id and total>0) as T on qt.sku_id=t.sku_id)  
+	LOOP
+        tsku_id := var_r.sku_id ; 
+		qty_to_placement :=var_r.sqty;
+			
+
+		FOR var_rest IN (select *,COALESCE(G.volume,0) as g_volume,COALESCE(G.weight,0) as g_weight from(select *,COALESCE(max_volume,0)-COALESCE(T.volume,0) as rest_volume,COALESCE(max_weight,0)-COALESCE(T.weight,0) as rest_weight,COALESCE(max_qty,0)-COALESCE(T.qty,0) as rest_qty from(Select AA.simple_order,A.sku_id,A.address,COALESCE(AA.max_volume,0) as max_volume,COALESCE(AA.max_weight,0) as max_weight,COALESCE(AA.max_qty,0) as max_qty from api.wms_allowed_places as A inner join api.wms_addresses as AA on A.address=AA.id ) as Addr left outer join api.wms_address_filling as T on Addr.address=T.address_id  ) as TQ inner join api.wms_goods as G on TQ.sku_id=G.id where TQ.sku_id=tsku_id and ((TQ.rest_qty>0 and TQ.max_qty>0) or TQ.max_qty=0) and ((TQ.rest_volume>0 and TQ.max_volume>0) or TQ.max_volume=0) and ((TQ.rest_weight>0 and TQ.max_weight>0) or TQ.max_weight=0) order by TQ.simple_order)
+		LOOP
+		
+		if(var_rest.rest_qty<qty_to_placement) then  
+		maximum_q :=var_rest.rest_qty ;
+		else
+		maximum_q :=qty_to_placement ;
+		end if;
+		
+		if(var_rest.g_weight>0 and var_rest.max_weight>0) then
+		c_w:=var_rest.g_weight*qty_to_placement;
+		if(var_rest.rest_weight<c_w) then  
+		maximum_w :=var_rest.rest_weight/var_rest.g_weight ;
+		else
+		maximum_w :=maximum_v ;
+		end if;
+			
+			if(maximum_w<maximum_q) then maximum_q = maximum_w; end if;
+        
+		end if;
+						
+						
+		if(var_rest.g_volume>0 and  var_rest.max_volume>0) then
+		c_v:=var_rest.g_volume*qty_to_placement;
+		if(var_rest.rest_volume<c_v) then  
+		maximum_v :=var_rest.rest_weight/var_rest.g_volume;
+		else
+		maximum_v :=maximum_v ;
+		end if;
+						
+		if(maximum_v<maximum_q) then maximum_q = maximum_v; end if;						
+		end if;
+		
+		
+	
+		qty:= maximum_q;
+		qty_to_placement:=qty_to_placement-qty;
+		
+		sku_id := var_r.sku_id;
+		address :=var_rest.address;
+		sku := var_rest.caption;
+		
+		if(qty>0) THEN
+		RETURN NEXT; END IF;
+		
+		EXIT WHEN (qty_to_placement<=0);
+		
+		END LOOP;
+
+	if(qty_to_placement>0) then
+		sku_id := var_r.sku_id;
+		address :='не удалось подобрать!';
+		qty:=qty_to_placement;
+		RETURN NEXT;
+	end if;
+        
+	END LOOP;
+	
+	
+END; $BODY$;
+
+ALTER FUNCTION api.get_placement_orders(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_placement_orders(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_placement_orders(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_placement_orders(character varying) TO web_anon;
+
+CREATE OR REPLACE FUNCTION api.get_goods_for_address_placement(
+	user_id character varying,
+	address_id character varying)
+    RETURNS TABLE(sku character varying, address character varying, qty real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+SELECT sku,address,qty from api.get_placement_orders(user_id) where address=address_id
+
+$BODY$;
+
+ALTER FUNCTION api.get_goods_for_address_placement(character varying, character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_goods_for_address_placement(character varying, character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_goods_for_address_placement(character varying, character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_goods_for_address_placement(character varying, character varying) TO web_anon;
+
+-- FUNCTION: api.get_inventory_list(character varying)
+
+-- DROP FUNCTION api.get_inventory_list(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_inventory_list(
+	orderid character varying)
+    RETURNS TABLE(nom character varying, qty_plan real, qty_fact real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+select G.caption as nom, TT.plan,TT.fact from (
+select sum(T.plan) as plan,sum (T.fact) as fact, sku_id from(
+select sku_id, qty_plan as plan,0 as fact from api.wms_orders where  order_id=cast(orderid as integer)
+union all
+select sku_id, 0 as plan,qty as fact from api.wms_inventory where  order_id=cast(orderid as integer)) as T group by  sku_id) as TT join api.wms_goods as G on TT.sku_id=G.id
+$BODY$;
+
+ALTER FUNCTION api.get_inventory_list(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_inventory_list(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_inventory_list(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_inventory_list(character varying) TO web_anon;
+
+-- FUNCTION: api.get_operator_balance(integer, character varying)
+
+-- DROP FUNCTION api.get_operator_balance(integer, character varying);
+
+CREATE OR REPLACE FUNCTION api.get_operator_balance(
+	opcode integer,
+	user_id character varying)
+    RETURNS TABLE(nom character varying, qty real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+select G.caption as nom,O.qty from api.wms_operations as O inner join api.wms_goods as G on O.sku_id=G.id where to_operation=opcode and address_id=user_id   
+
+$BODY$;
+
+ALTER FUNCTION api.get_operator_balance(integer, character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operator_balance(integer, character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operator_balance(integer, character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_operator_balance(integer, character varying) TO web_anon;
+
+-- FUNCTION: api.get_operators_moving(character varying)
+
+-- DROP FUNCTION api.get_operators_moving(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_operators_moving(
+	user_id character varying)
+    RETURNS TABLE(nom character varying, qty real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$select G.caption as nom,sum(O.qty) from api.wms_operations as O inner join api.wms_goods as G on O.sku_id=G.id where to_operation =5 and address_id=user_id group by G.caption
+
+$BODY$;
+
+ALTER FUNCTION api.get_operators_moving(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_moving(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_moving(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_moving(character varying) TO web_anon;
+
+-- FUNCTION: api.get_operators_placing(character varying)
+
+-- DROP FUNCTION api.get_operators_placing(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_operators_placing(
+	user_id character varying)
+    RETURNS TABLE(nom character varying, qty real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+select G.caption as nom,O.qty from api.wms_operations as O inner join api.wms_goods as G on O.sku_id=G.id where to_operation=1 and address_id=user_id   
+
+$BODY$;
+
+ALTER FUNCTION api.get_operators_placing(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_placing(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_placing(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_placing(character varying) TO web_anon;
+
+-- FUNCTION: api.get_operators_shipping(character varying)
+
+-- DROP FUNCTION api.get_operators_shipping(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_operators_shipping(
+	user_id character varying)
+    RETURNS TABLE(nom character varying, qty real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+select G.caption as nom,O.qty from api.wms_operations as O inner join api.wms_goods as G on O.sku_id=G.id where to_operation=2 and address_id=user_id   
+
+$BODY$;
+
+ALTER FUNCTION api.get_operators_shipping(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_shipping(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_shipping(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_operators_shipping(character varying) TO web_anon;
+
+-- FUNCTION: api.get_picking(character varying)
+
+-- DROP FUNCTION api.get_picking(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_picking(
+	orderid character varying)
+    RETURNS TABLE(sku_id integer, sku character varying, address character varying, qty real) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 5000
+    
+AS $BODY$DECLARE 
+    var_r record;
+	var_rest record;
+	tsku_id integer;
+	qty_to_picking real;
+BEGIN
+	FOR var_r IN(select * from(select COALESCE(sum(q.qty_plan),0)-COALESCE(sum(q.qty_fact),0) as sqty,q.sku_id,q.caption as nom from (select * from api.wms_orders as OP inner join api.wms_goods as G on OP.sku_id=G.id where OP.order_id=CAST(orderid as integer) ) as q  group by q.sku_id,q.caption) as T where sqty>0)  
+	LOOP
+        tsku_id := var_r.sku_id ; 
+		qty_to_picking :=var_r.sqty;
+			
+
+		FOR var_rest IN (select * from api.wms_totals as T inner join api.wms_addresses as A on T.address_id=A.id where T.sku_id=tsku_id and (A.not_for_picking is null or A.not_for_picking=false) order by A.simple_order )
+		LOOP
+		
+		if(var_rest.total<qty_to_picking) then  
+		qty :=var_rest.total ;
+		qty_to_picking:=qty_to_picking-qty;
+		else
+		qty :=qty_to_picking ;
+		qty_to_picking:=qty_to_picking-qty;
+		end if;
+		
+		sku_id := var_r.sku_id;
+		sku := var_r.nom;
+		address :=var_rest.address_id;
+		
+		if(qty>0) THEN
+		RETURN NEXT; END IF;
+		
+		EXIT WHEN (qty_to_picking<=0);
+		
+		END LOOP;
+
+	if(qty_to_picking>0) then
+		sku_id := var_r.sku_id;
+		sku := var_r.nom;
+		address :='не хватает для подбора!';
+		qty:=qty_to_picking;
+		RETURN NEXT;
+	end if;
+        
+	END LOOP;
+	
+	
+END; $BODY$;
+
+ALTER FUNCTION api.get_picking(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_picking(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_picking(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_picking(character varying) TO web_anon;
+
+--альтернативная функциия
+CREATE OR REPLACE FUNCTION api.get_picking_alternative(
+	orderid character varying, lastaddress character varying)
+    RETURNS TABLE(sku_id integer, sku character varying,address character varying, qty real) 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+SELECT P.sku_id,P.sku,P.address,P.qty from api.get_picking(
+	orderid
+) as P left outer join api.wms_distances as D on P.address=D.address_dest and D.address_source=lastaddress order by D.distance
+
+$BODY$;
+
+ALTER FUNCTION api.get_picking_alternative(character varying,character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_picking_alternative(character varying,character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_picking_alternative(character varying,character varying) TO web_anon;
+
+
+
+
+
+
+--основные объекты
+-- Table: api.ui_configurations
+
+-- DROP TABLE api.ui_configurations;
+
+CREATE TABLE api.ui_configurations
+(
+    name character(100) COLLATE pg_catalog."default",
+    description text COLLATE pg_catalog."default",
+    "XML" text COLLATE pg_catalog."default",
+    id character(100) COLLATE pg_catalog."default" NOT NULL,
+    CONSTRAINT ui_configurations_pkey PRIMARY KEY (id),
+    CONSTRAINT id UNIQUE (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.ui_configurations
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.ui_configurations TO admin;
+
+GRANT ALL ON TABLE api.ui_configurations TO web_anon;
+
+GRANT ALL ON TABLE api.ui_configurations TO PUBLIC;
+
+CREATE EXTENSION pgcrypto
+    SCHEMA public
+    VERSION "1.3";
+
+
+CREATE TABLE api.documents
+(
+    id integer NOT NULL DEFAULT nextval('api.documents_id_seq'::regclass),
+    type character varying(150) COLLATE pg_catalog."default",
+    metatype character varying(150) COLLATE pg_catalog."default",
+    screen character varying(150) COLLATE pg_catalog."default",
+    com text COLLATE pg_catalog."default",
+    field1caption character varying(100) COLLATE pg_catalog."default",
+    field2caption character varying(100) COLLATE pg_catalog."default",
+    field3caption character varying(100) COLLATE pg_catalog."default",
+    field4caption character varying(100) COLLATE pg_catalog."default",
+    field5caption character varying(100) COLLATE pg_catalog."default",
+    description text COLLATE pg_catalog."default",
+    field1 text COLLATE pg_catalog."default",
+    field2 text COLLATE pg_catalog."default",
+    field3 text COLLATE pg_catalog."default",
+    field4 text COLLATE pg_catalog."default",
+    field5 text COLLATE pg_catalog."default",
+    doc text COLLATE pg_catalog."default",
+    doc_pictures text COLLATE pg_catalog."default",
+    process text COLLATE pg_catalog."default",
+    done integer,
+    created_at time with time zone,
+    "SQL_id" integer,
+    owner character varying(100) COLLATE pg_catalog."default",
+    erp_id character varying(100) COLLATE pg_catalog."default",
+    doc_date character varying(35) COLLATE pg_catalog."default",
+    CONSTRAINT documents_pkey PRIMARY KEY (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.documents
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.documents TO admin;
+
+GRANT ALL ON TABLE api.documents TO web_anon;
+
+
+
+CREATE TABLE api.attachments
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    name character(150) COLLATE pg_catalog."default",
+    base64string text COLLATE pg_catalog."default",
+    CONSTRAINT attachments_pkey PRIMARY KEY (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.attachments
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.attachments TO admin;
+
+GRANT ALL ON TABLE api.attachments TO web_anon;
+
+ALTER SEQUENCE api.documents_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api.documents_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api.documents_id_seq TO web_anon;
+
+
+
+CREATE TABLE api.uploads
+(
+    doc_id integer,
+    device_id character varying(50) COLLATE pg_catalog."default",
+    "user" character varying(50) COLLATE pg_catalog."default",
+    CONSTRAINT doc_id FOREIGN KEY (doc_id)
+        REFERENCES api.documents (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.uploads
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.uploads TO admin;
+
+GRANT ALL ON TABLE api.uploads TO web_anon;
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION api.get_docs5(
+	user_id character varying,
+	dev_id character varying)
+    RETURNS TABLE(id integer, doc text, doc_pictures text, field1 character varying, field2 text, field3 text, field4 text, field5 text, field1caption character varying, field2caption character varying, field3caption character varying, field4caption character varying, field5caption character varying, type character varying, screen character varying, com character varying, metatype character varying, description text, process text, done integer, sql_id integer, erp_id character varying, owner character varying, created_at timestamp with time zone, doc_date character varying) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 5000
+    
+AS $BODY$DECLARE 
+    var_r record;
+BEGIN
+	FOR var_r IN(select * from api.documents as d where not d.id in(select doc_id from api.uploads as u where u.device_id=dev_id and u.user=user_id) )  
+	LOOP
+        id := var_r.id ; 
+		doc := var_r.doc;
+		doc_pictures := var_r.doc_pictures;
+		type := var_r.type;
+		metatype := var_r.metatype;
+		done := var_r.done;
+		process := var_r.process;
+		created_at := var_r.created_at;
+		doc_date := var_r.doc_date;
+		
+		erp_id := var_r.erp_id;
+		screen := var_r.screen;
+		com := var_r.com;
+		owner := var_r.owner;
+		
+		field1 := var_r.field1;
+		field2 := var_r.field2;
+		field3 := var_r.field3;
+		field4 := var_r.field4;
+		field5 := var_r.field5;
+		field1caption := var_r.field1caption;
+		field2caption := var_r.field2caption;
+		field3caption := var_r.field3caption;
+		field4caption := var_r.field4caption;
+		field5caption := var_r.field5caption;
+        RETURN NEXT;
+	END LOOP;
+END; $BODY$;
+
+ALTER FUNCTION api.get_docs5(character varying, character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_docs5(character varying, character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_docs5(character varying, character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_docs5(character varying, character varying) TO web_anon WITH GRANT OPTION;
+
+-- View: api.wms_tasks
+
+-- DROP VIEW api.wms_tasks;
+
+CREATE OR REPLACE VIEW api.wms_tasks
+ AS
+ SELECT wms_orders_captions.id,
+    wms_orders_captions.barcode,
+    wms_orders_captions.done,
+    wms_orders_captions.doc_date,
+    wms_orders_captions.type,
+    wms_orders_captions.typeid,
+    wms_orders_captions.doc_date_str,
+    wms_orders_captions.doc_number,
+    wms_orders_captions.contractor,
+    wms_orders_captions.description,
+    wms_orders_captions.caption,
+    wms_orders_captions.action,
+    wms_orders_captions.doc_number AS field1,
+    'Номер документа'::text AS field1caption,
+    wms_orders_captions.contractor AS field2,
+    'Поставщик'::text AS field2caption
+   FROM api.wms_orders_captions
+  WHERE NOT wms_orders_captions.done OR wms_orders_captions.done IS NULL;
+
+ALTER TABLE api.wms_tasks
+    OWNER TO admin;
+
+GRANT ALL ON TABLE api.wms_tasks TO admin;
+GRANT ALL ON TABLE api.wms_tasks TO web_anon;
+
+-- FUNCTION: api.get_tasks(character varying)
+
+-- DROP FUNCTION api.get_tasks(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_tasks(
+	"user" character varying)
+    RETURNS SETOF api.wms_tasks 
+    LANGUAGE 'sql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+    --Передаю параметр котрый можно указать в условии на всякий случай,он не нужен пока
+	SELECT * FROM api.wms_tasks;
+$BODY$;
+
+ALTER FUNCTION api.get_tasks(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_tasks(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_tasks(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_tasks(character varying) TO web_anon;
+
+
+-- ----------- Объекты чата и задач
+
+-- SEQUENCE: api.ui_chat_id_seq
+
+-- DROP SEQUENCE api.ui_chat_id_seq;
+
+CREATE SEQUENCE api.ui_chat_id_seq
+    INCREMENT 1
+    START 65
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+ALTER SEQUENCE api.ui_chat_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api.ui_chat_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api.ui_chat_id_seq TO web_anon;
+
+
+
+-- SEQUENCE: api.ui_todo_id_seq
+
+-- DROP SEQUENCE api.ui_todo_id_seq;
+
+CREATE SEQUENCE api.ui_todo_id_seq
+    INCREMENT 1
+    START 51
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+ALTER SEQUENCE api.ui_todo_id_seq
+    OWNER TO admin;
+
+GRANT ALL ON SEQUENCE api.ui_todo_id_seq TO admin;
+
+GRANT ALL ON SEQUENCE api.ui_todo_id_seq TO web_anon;
+
+
+
+-- Table: api.ui_chat
+
+-- DROP TABLE api.ui_chat;
+
+CREATE TABLE api.ui_chat
+(
+    created_at timestamp without time zone DEFAULT now(),
+    sender character varying(100) COLLATE pg_catalog."default",
+    destination character varying(100) COLLATE pg_catalog."default",
+    body text COLLATE pg_catalog."default",
+    title text COLLATE pg_catalog."default",
+    id integer NOT NULL DEFAULT nextval('api.ui_chat_id_seq'::regclass),
+    done integer,
+    sender_device character varying(100) COLLATE pg_catalog."default",
+    taken integer,
+    executor character varying(50) COLLATE pg_catalog."default",
+    data text COLLATE pg_catalog."default",
+    action character varying(100) COLLATE pg_catalog."default",
+    CONSTRAINT ui_chat_pkey PRIMARY KEY (id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.ui_chat
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.ui_chat TO admin;
+
+GRANT ALL ON TABLE api.ui_chat TO web_anon;
+
+
+-- Table: api.ui_chat_uploads
+
+-- DROP TABLE api.ui_chat_uploads;
+
+CREATE TABLE api.ui_chat_uploads
+(
+    doc_id integer,
+    device_id character varying(100) COLLATE pg_catalog."default",
+    "user" character varying(100) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.ui_chat_uploads
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.ui_chat_uploads TO admin;
+
+GRANT ALL ON TABLE api.ui_chat_uploads TO web_anon;
+
+-- Table: api.ui_todo
+
+-- DROP TABLE api.ui_todo;
+
+CREATE TABLE api.ui_todo
+(
+    id integer NOT NULL DEFAULT nextval('api.ui_todo_id_seq'::regclass),
+    created_at timestamp with time zone DEFAULT now(),
+    title text COLLATE pg_catalog."default",
+    caption1 character varying(50) COLLATE pg_catalog."default",
+    caption2 character varying(50) COLLATE pg_catalog."default",
+    val1 character varying(100) COLLATE pg_catalog."default",
+    val2 character varying(100) COLLATE pg_catalog."default",
+    description text COLLATE pg_catalog."default",
+    orderref character varying(50) COLLATE pg_catalog."default",
+    action character varying(100) COLLATE pg_catalog."default",
+    status character varying(100) COLLATE pg_catalog."default",
+    done integer,
+    curr_status character varying(50) COLLATE pg_catalog."default",
+    destination character varying(50) COLLATE pg_catalog."default",
+    comment text COLLATE pg_catalog."default",
+    data text COLLATE pg_catalog."default",
+    chat_serv_id integer,
+    sender character varying(100) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.ui_todo
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.ui_todo TO admin;
+
+GRANT ALL ON TABLE api.ui_todo TO web_anon;
+
+
+-- Table: api.ui_todo_uploads
+
+-- DROP TABLE api.ui_todo_uploads;
+
+CREATE TABLE api.ui_todo_uploads
+(
+    doc_id integer,
+    device_id character varying(100) COLLATE pg_catalog."default",
+    "user" character varying(100) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE api.ui_todo_uploads
+    OWNER to admin;
+
+GRANT ALL ON TABLE api.ui_todo_uploads TO admin;
+
+GRANT ALL ON TABLE api.ui_todo_uploads TO web_anon;
+
+-- FUNCTION: api.get_chat(character varying, character varying)
+
+-- DROP FUNCTION api.get_chat(character varying, character varying);
+
+CREATE OR REPLACE FUNCTION api.get_chat(
+	user_id character varying,
+	dev_id character varying)
+    RETURNS TABLE(id integer, sender character varying, destination character varying, body text, data text, action text, title text, done integer, created_at timestamp with time zone) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 5000
+    
+AS $BODY$DECLARE 
+    var_r record;
+BEGIN
+	FOR var_r IN(select * from api.ui_chat as d where  (not d.sender_device=dev_id) and (d.destination='all' or d.destination=user_id) and not d.id in(select doc_id from api.ui_chat_uploads as u where u.device_id=dev_id and u.user=user_id) )  
+	LOOP
+        id := var_r.id ; 
+		sender := var_r.sender;
+		destination := var_r.destination;
+		body := var_r.body;
+		title := var_r.title;
+		
+		data := var_r.data;
+		action := var_r.action;
+	
+		done := var_r.done;
+
+		created_at := var_r.created_at;
+	
+        RETURN NEXT;
+	END LOOP;
+END; $BODY$;
+
+ALTER FUNCTION api.get_chat(character varying, character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_chat(character varying, character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_chat(character varying, character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_chat(character varying, character varying) TO web_anon WITH GRANT OPTION;
+
+-- FUNCTION: api.get_chat(character varying, character varying)
+
+-- DROP FUNCTION api.get_chat(character varying, character varying);
+
+CREATE OR REPLACE FUNCTION api.get_chat2(
+	user_id character varying,
+	dev_id character varying)
+    RETURNS TABLE(id integer, sender character varying, destination character varying, body text, data text, action text, title text, done integer, executor character varying, created_at timestamp with time zone) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 5000
+    
+AS $BODY$DECLARE 
+    var_r record;
+BEGIN
+	FOR var_r IN(select * from api.ui_chat as d where  (not d.sender_device=dev_id) and (d.destination='all' or d.destination=user_id) and not d.id in(select doc_id from api.ui_chat_uploads as u where u.device_id=dev_id and u.user=user_id) )  
+	LOOP
+        id := var_r.id ; 
+		sender := var_r.sender;
+		destination := var_r.destination;
+		body := var_r.body;
+		title := var_r.title;
+		
+		executor := var_r.executor;
+		
+		data := var_r.data;
+		action := var_r.action;
+	
+		done := var_r.done;
+
+		created_at := var_r.created_at;
+	
+        RETURN NEXT;
+	END LOOP;
+END; $BODY$;
+
+ALTER FUNCTION api.get_chat2(character varying, character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_chat2(character varying, character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_chat2(character varying, character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_chat2(character varying, character varying) TO web_anon WITH GRANT OPTION;
+
+
+
+
+
+-- FUNCTION: api.get_todo(character varying, character varying)
+
+-- DROP FUNCTION api.get_todo(character varying, character varying);
+
+CREATE OR REPLACE FUNCTION api.get_todo(
+	user_id character varying,
+	dev_id character varying)
+    RETURNS TABLE(id integer, title text, data text, caption1 text, caption2 text, val1 text, val2 text, description text, orderref text, faction text, status text, sender text, curr_status text, done integer, destination text, created_at timestamp with time zone) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 5000
+    
+AS $BODY$DECLARE 
+    var_r record;
+BEGIN
+	FOR var_r IN(select * from api.ui_todo as d where (d.destination=user_id or  d.destination='all') and  ( (d.sender<>user_id and d.sender!=null) or d.sender is null) and  not d.id in(select doc_id from api.ui_todo_uploads as u where u.device_id=dev_id and u.user=user_id) )  
+	LOOP
+        id := var_r.id ; 
+		title := var_r.title;
+		orderref := var_r.orderref;
+		
+		destination := var_r.destination;
+		
+		caption1 := var_r.caption1;
+		caption2 := var_r.caption2;
+		val1 := var_r.val1;
+		val2 := var_r.val2;
+		description := var_r.description;
+		status := var_r.status;
+		curr_status := var_r.curr_status;
+		faction:= var_r.action;
+		data:= var_r.data;
+		sender:= var_r.sender;
+		
+	
+		done := var_r.done;
+
+		created_at := var_r.created_at;
+	
+        RETURN NEXT;
+	END LOOP;
+END; $BODY$;
+
+ALTER FUNCTION api.get_todo(character varying, character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_todo(character varying, character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_todo(character varying, character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_todo(character varying, character varying) TO web_anon WITH GRANT OPTION;
+

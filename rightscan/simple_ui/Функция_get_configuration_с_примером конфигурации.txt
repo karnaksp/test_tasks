@@ -1,0 +1,204 @@
+-- FUNCTION: api.get_configuration(character varying)
+
+-- DROP FUNCTION api.get_configuration(character varying);
+
+CREATE OR REPLACE FUNCTION api.get_configuration(
+	confid character varying)
+    RETURNS TABLE(conf text, startprocess text, jdata text) 
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    ROWS 1000
+    
+AS $BODY$
+		
+BEGIN
+	
+		conf := '<?xml version="1.0" encoding="UTF-8"?>
+<ClientConfiguration OfflineMode="true" GetTaskRequest="">
+	<onCreatePostgREST/>
+	<Processes>
+		<Process ProcessName="Проверка комплектации" Column1Title="" Column2Title="" Column3Title="" Column4Title="" PlanTitle="" FactTitle="" PlanFactHeader="План-факт" RandomScreens="true" DefineOnBackPressed="false" hidden="true" hideBottomBar="false" login_screen="false">
+			<Operation Name="Проверка комплектации" show_by_condition="" send_when_opened="false" SaveTask="false" RunOffline="false" SendRequest="false" StartForResult="false" Timer="false">
+				<LinearLayout orientation="vertical" height="match_parent" width="match_parent" weight="0">
+					<TextView show_by_condition="" Value="Заказ:" NoRefresh="false" document_type="" mask="" Variable="" NextStep="false" TextSize="20" TextColor="#4682B4" TextBold="false" TextItalic="false" BackgroundColor="" width="match_parent" height="wrap_content" weight="0" gravity_horizontal="center"/>
+					<TextView show_by_condition="" Value="@order" NoRefresh="false" document_type="" mask="" Variable="" NextStep="false" TextSize="20" TextColor="#8B008B" TextBold="true" TextItalic="false" BackgroundColor="" width="match_parent" height="wrap_content" weight="0" gravity_horizontal="center"/>
+					<TextView show_by_condition="" Value="Проверьте комплектность, поставьте галочки" NoRefresh="false" document_type="" mask="" Variable="" NextStep="false" TextSize="20" TextColor="#ffffff" TextBold="true" TextItalic="false" BackgroundColor="#4682B4" width="match_parent" height="wrap_content" weight="0"/>
+					<CheckBox show_by_condition="" Value="Инструкция" NoRefresh="false" document_type="" mask="" Variable="manual" NextStep="false"/>
+					<CheckBox show_by_condition="" Value="Блок питания" NoRefresh="false" document_type="" mask="" Variable="dc_adapter" NextStep="false"/>
+					<CheckBox show_by_condition="" Value="Печать ОТК" NoRefresh="false" document_type="" mask="" Variable="otk" NextStep="false"/>
+					<CheckBox show_by_condition="" Value="Печать в гарантийном талоне" NoRefresh="false" document_type="" mask="" Variable="warranty" NextStep="false"/>
+				</LinearLayout>
+				<OFFLine/>
+				<PostgREST/>
+			</Operation>
+		</Process>
+		<Process ProcessName="Пополнение торговой точки" Column1Title="" Column2Title="" Column3Title="" Column4Title="" PlanTitle="" FactTitle="" PlanFactHeader="План-факт" RandomScreens="true" DefineOnBackPressed="false" hidden="true" hideBottomBar="false" login_screen="false">
+			<Operation Name="Начало работы пополнение торговой точки" show_by_condition="" send_when_opened="false" SaveTask="false" RunOffline="false" SendRequest="false" StartForResult="false" Timer="false">
+				<Caption1 show_by_condition="" Value="@order" Header="Заказ клиента" document_type="" mask="" Variable="" NextStep="false"/>
+				<Description show_by_condition="" Value="Это пример работы с задачами из ленты задач и создание массива-переменной JSON для сохранения в задаче." Header="" document_type="" mask="" Variable="" NextStep="false"/>
+				<OFFLine/>
+				<PostgREST>
+					<LinePostgREST Run="OnCreate" Command="CreateJSONObject" Listener="" LineCode="001" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="jorder" val=""/>
+						<outputPostgREST var="order" val="@order"/>
+						<outputPostgREST var="ref" val="@orderRef"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnCreate" Command="CreateJSONArray" Listener="" LineCode="002" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="jgoods" val=""/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="ShowScreen" Listener="" LineCode="003" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="Пополнение точки:Поиск по штрихкоду или артикулу" val=""/>
+					</LinePostgREST>
+				</PostgREST>
+			</Operation>
+			<Operation Name="Пополнение точки:Поиск по штрихкоду или артикулу" show_by_condition="" send_when_opened="false" SaveTask="false" RunOffline="false" SendRequest="false" StartForResult="false" Timer="false">
+				<barcode show_by_condition="" Value="" Header="" document_type="" mask="" Variable="barcode" NextStep="false"/>
+				<Input1 show_by_condition="" Value="Артикул" Header="" document_type="" mask="String" Variable="art" NextStep="false"/>
+				<OFFLine/>
+				<PostgREST>
+					<LinePostgREST Run="OnClick" Command="GETToVar" Listener="barcode" LineCode="001" IfLine="" ThenLine="" ElseLine="" Query="goods?barcode=in.(%22~barcode~%22)" SQLQuery="" ErrorText="Товар не найден">
+						<paramsPostgREST parameter="~barcode~" val="@barcode"/>
+						<outputPostgREST var="nom" val="name"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="GETToVar" Listener="Input1" LineCode="002" IfLine="" ThenLine="" ElseLine="" Query="goods?article=in.(%22~art~%22)" SQLQuery="" ErrorText="Товар не найден">
+						<paramsPostgREST parameter="~art~" val="@art"/>
+						<outputPostgREST var="nom" val="name"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnCreate" Command="GETToTable" Listener="" LineCode="003" IfLine="" ThenLine="" ElseLine="" Query="p_orders?orderref=in.(%22~ref~%22)" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="~ref~" val="@orderRef"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="ShowScreen" Listener="barcode" LineCode="004" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="Пополнение точки: ввод количества" val=""/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="ShowScreen" Listener="Input1" LineCode="004" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="Пополнение точки: ввод количества" val=""/>
+					</LinePostgREST>
+				</PostgREST>
+			</Operation>
+			<Operation Name="Пополнение точки: ввод количества" show_by_condition="" send_when_opened="false" SaveTask="false" RunOffline="false" SendRequest="false" StartForResult="false" Timer="false">
+				<Caption1 show_by_condition="" Value="@nom" Header="Товар" document_type="" mask="" Variable="" NextStep="false"/>
+				<Input1 show_by_condition="" Value="" Header="" document_type="" mask="Decimal" Variable="qty" NextStep="false"/>
+				<OFFLine/>
+				<PostgREST>
+					<LinePostgREST Run="OnClick" Command="CreateJSONObject" Listener="" LineCode="001" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="row" val=""/>
+						<outputPostgREST var="qty" val="@qty"/>
+						<outputPostgREST var="barcode" val="@barcode"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="CreateJSONObject" Listener="Input1" LineCode="001" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="row" val=""/>
+						<outputPostgREST var="qty" val="@qty"/>
+						<outputPostgREST var="barcode" val="@barcode"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="PutObjectToArray" Listener="" LineCode="002" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="jgoods" val="@row"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="PutObjectToArray" Listener="Input1" LineCode="002" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="jgoods" val="@row"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="PutJSONtoJSON" Listener="" LineCode="003" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="jorder" val=""/>
+						<outputPostgREST var="goods" val="@jgoods"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="PutJSONtoJSON" Listener="Input1" LineCode="003" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="jorder" val=""/>
+						<outputPostgREST var="goods" val="@jgoods"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="SetJSONtoVar" Listener="" LineCode="004" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<outputPostgREST var="orderdata" val="@jorder"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="SetJSONtoVar" Listener="Input1" LineCode="004" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<outputPostgREST var="orderdata" val="@jorder"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="POST" Listener="" LineCode="005" IfLine="" ThenLine="" ElseLine="" Query="p_orders" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="nom" val="@nom"/>
+						<paramsPostgREST parameter="qty" val="@qty"/>
+						<paramsPostgREST parameter="orderref" val="@orderRef"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="POST" Listener="Input1" LineCode="005" IfLine="" ThenLine="" ElseLine="" Query="p_orders" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="nom" val="@nom"/>
+						<paramsPostgREST parameter="qty" val="@qty"/>
+						<paramsPostgREST parameter="orderref" val="@orderRef"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="ShowScreen" Listener="" LineCode="006" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="Пополнение точки:Поиск по штрихкоду или артикулу" val=""/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="ShowScreen" Listener="Input1" LineCode="006" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="Пополнение точки:Поиск по штрихкоду или артикулу" val=""/>
+					</LinePostgREST>
+				</PostgREST>
+			</Operation>
+		</Process>
+		<Process ProcessName="Пример работы с задачами" Column1Title="" Column2Title="" Column3Title="" Column4Title="" PlanTitle="" FactTitle="" PlanFactHeader="План-факт" RandomScreens="true" DefineOnBackPressed="false" hidden="false" hideBottomBar="false" login_screen="false">
+			<Operation Name="Работа с задачами" show_by_condition="" send_when_opened="false" SaveTask="false" RunOffline="false" SendRequest="false" StartForResult="false" Timer="false">
+				<LinearLayout orientation="vertical" height="match_parent" width="match_parent" weight="0">
+					<LinearLayout orientation="horizontal" height="wrap_content" width="match_parent" weight="0">
+						<TextView show_by_condition="" Value="Заголовок задачи:" NoRefresh="false" document_type="" mask="" Variable="" NextStep="false" TextSize="15" TextColor="" TextBold="false" TextItalic="false" BackgroundColor="" width="match_parent" height="wrap_content" weight="1" gravity_horizontal="right"/>
+						<EditTextText show_by_condition="" Value="" NoRefresh="false" document_type="" mask="" Variable="message" NextStep="false" TextSize="20" TextColor="#4682B4" TextBold="true" TextItalic="true" BackgroundColor="" width="match_parent" height="wrap_content" weight="1" gravity_horizontal="left"/>
+					</LinearLayout>
+					<Button show_by_condition="" Value="Создать задачу" NoRefresh="false" document_type="" mask="" Variable="btn_task" NextStep="false" TextSize="0" TextColor="" TextBold="false" TextItalic="false" BackgroundColor="#E6EE9C" width="match_parent" height="wrap_content" weight="0" drawable="plus"/>
+					<Button show_by_condition="" Value="Выполнил задачу" NoRefresh="false" document_type="" mask="" Variable="btn_done" NextStep="false" TextSize="0" TextColor="" TextBold="false" TextItalic="false" BackgroundColor="#E6EE9C" width="match_parent" height="wrap_content" weight="0" drawable="done"/>
+					<Button show_by_condition="" Value="Отказ от задачи" NoRefresh="false" document_type="" mask="" Variable="btn_cancel" NextStep="false" TextSize="0" TextColor="" TextBold="false" TextItalic="false" BackgroundColor="#DC143C" width="match_parent" height="wrap_content" weight="0" gravity_horizontal="center" drawable="cancel"/>
+				</LinearLayout>
+				<OFFLine/>
+				<PostgREST>
+					<LinePostgREST Run="OnClick" Command="SendTask" Listener="btn_task" LineCode="002" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="title" val="@message"/>
+						<paramsPostgREST parameter="status" val="*Принять|~Отклонить"/>
+						<paramsPostgREST parameter="action" val="Пример работы с задачами"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="SetStatusTask" Listener="btn_cancel" LineCode="003" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="done" val="0"/>
+						<paramsPostgREST parameter="status" val="~Отказался"/>
+						<paramsPostgREST parameter="comment" val="@message"/>
+					</LinePostgREST>
+					<LinePostgREST Run="OnClick" Command="SetStatusTask" Listener="btn_done" LineCode="004" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="done" val="1"/>
+						<paramsPostgREST parameter="status" val="*Сделал"/>
+						<paramsPostgREST parameter="comment" val="Готово"/>
+					</LinePostgREST>
+				</PostgREST>
+			</Operation>
+		</Process>
+		<Process ProcessName="Пример работы с сообщениями из процессов" Column1Title="" Column2Title="" Column3Title="" Column4Title="" PlanTitle="" FactTitle="" PlanFactHeader="План-факт" RandomScreens="true" DefineOnBackPressed="false" hidden="false" hideBottomBar="false" login_screen="false">
+			<Operation Name="Работа с сообщениями" show_by_condition="" send_when_opened="false" SaveTask="false" RunOffline="false" SendRequest="false" StartForResult="false" Timer="false">
+				<LinearLayout orientation="vertical" height="match_parent" width="match_parent" weight="0">
+					<LinearLayout orientation="horizontal" height="wrap_content" width="match_parent" weight="0">
+						<TextView show_by_condition="" Value="Сообщение:" NoRefresh="false" document_type="" mask="" Variable="" NextStep="false" TextSize="15" TextColor="" TextBold="false" TextItalic="false" BackgroundColor="" width="match_parent" height="wrap_content" weight="1" gravity_horizontal="right"/>
+						<EditTextText show_by_condition="" Value="" NoRefresh="false" document_type="" mask="" Variable="message" NextStep="false" TextSize="20" TextColor="#4682B4" TextBold="true" TextItalic="true" BackgroundColor="" width="match_parent" height="wrap_content" weight="1" gravity_horizontal="left"/>
+					</LinearLayout>
+					<Button show_by_condition="" Value="Отправить сообщение в чат" NoRefresh="false" document_type="" mask="" Variable="btn_chat" NextStep="false" TextSize="0" TextColor="" TextBold="false" TextItalic="false" BackgroundColor="#E6EE9C" width="match_parent" height="wrap_content" weight="0" drawable="done"/>
+				</LinearLayout>
+				<OFFLine/>
+				<PostgREST>
+					<LinePostgREST Run="OnClick" Command="SendChat" Listener="btn_chat" LineCode="001" IfLine="" ThenLine="" ElseLine="" Query="" SQLQuery="" ErrorText="">
+						<paramsPostgREST parameter="title" val="@message"/>
+						<paramsPostgREST parameter="body" val="{}"/>
+						<paramsPostgREST parameter="destination" val="all"/>
+					</LinePostgREST>
+				</PostgREST>
+			</Operation>
+		</Process>
+	</Processes>
+</ClientConfiguration>';
+		startprocess := 'Пополнение торговой точки';
+		jdata :='{
+    "order": "Заказ № 1 (тест)"
+  }';
+		
+		RETURN NEXT;
+		
+	
+END; $BODY$;
+
+ALTER FUNCTION api.get_configuration(character varying)
+    OWNER TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_configuration(character varying) TO admin;
+
+GRANT EXECUTE ON FUNCTION api.get_configuration(character varying) TO PUBLIC;
+
+GRANT EXECUTE ON FUNCTION api.get_configuration(character varying) TO web_anon;
+
