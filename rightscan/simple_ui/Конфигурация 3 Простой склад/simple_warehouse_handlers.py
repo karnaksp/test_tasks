@@ -40,13 +40,7 @@ yellow_size = 0
 
 def menu_input(hashMap, _files=None, _data=None):
     if hashMap.get("listener") == "menu":
-        if hashMap.get("menu") == "Единицы":
-            hashMap.put("ShowScreen", "Единицы")
-        if hashMap.get("menu") == "Группы":
-            hashMap.put("ShowScreen", "Группы")
-        if hashMap.get("menu") == "Ячейки":
-            hashMap.put("ShowScreen", "Ячейки")
-        elif hashMap.get("menu") == "Птицы":
+        if hashMap.get("menu") == "Птицы":
             hashMap.put("ShowScreen", "Птицы")
     elif hashMap.get("listener") == "ON_BACK_PRESSED":
         hashMap.put("FinishProcess", "")
