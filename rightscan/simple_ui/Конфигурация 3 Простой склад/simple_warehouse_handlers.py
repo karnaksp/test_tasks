@@ -90,8 +90,6 @@ def init_on_start(hashMap, _files=None, _data=None):
 
 def menu_input(hashMap, _files=None, _data=None):
     if hashMap.get("listener") == "menu":
-        if hashMap.get("menu") == "СписокПтиц":
-            hashMap.put("ShowScreen", "СписокПтиц")
         if hashMap.get("menu") == "Группы":
             hashMap.put("ShowScreen", "Группы")
         if hashMap.get("menu") == "Ячейки":

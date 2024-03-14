@@ -32,7 +32,7 @@
                                         "height": "match_parent",
                                         "width": "match_parent",
                                         "weight": "0",
-                                        "Value": "Список птиц;Группы;Ячейки;Товары;Настройки",
+                                        "Value": "Группы;Ячейки;Товары;Настройки",
                                         "Variable": "menu",
                                         "type_s": "Список кнопок вертикальный"
                                     }
@@ -40,58 +40,6 @@
                                 "type_s": "Контейнер"
                             }
                         ]
-                    },
-                    {
-                        "Name": "СписокПтиц",
-                        "type": "Operation",
-                        "Elements": [
-                            {
-                                "type": "LinearLayout",
-                                "weight": "0",
-                                "height": "match_parent",
-                                "width": "match_parent",
-                                "orientation": "vertical",
-                                "Elements": [
-                                    {
-                                        "type": "LinearLayout",
-                                        "height": "wrap_content",
-                                        "width": "match_parent",
-                                        "weight": "0",
-                                        "Value": "Добавить",
-                                        "Variable": "btn_add",
-                                        "orientation": "horizontal",
-                                        "Elements": [
-                                            {
-                                                "type": "Button",
-                                                "height": "wrap_content",
-                                                "width": "match_parent",
-                                                "weight": "1",
-                                                "Value": "#f055",
-                                                "Variable": "btn_add",
-                                                "TextSize": "25",
-                                                "BackgroundColor": "#3CB371",
-                                                "type_s": "Кнопка"
-                                            }
-                                        ],
-                                        "type_s": "Контейнер"
-                                    },
-                                    {
-                                        "type": "TableLayout",
-                                        "height": "match_parent",
-                                        "width": "match_parent",
-                                        "weight": "0",
-                                        "Value": "@list",
-                                        "type_s": "Таблица"
-                                    }
-                                ],
-                                "type_s": "Контейнер"
-                            }
-                        ],
-                        "noScroll": true,
-                        "hideBottomBarScreen": true,
-                        "DefOnInput": "units_input",
-                        "DefOnCreate": "units_on_start",
-                        "send_when_opened": true
                     },
                     {
                         "Name": "ДиалогЕдиницы",
