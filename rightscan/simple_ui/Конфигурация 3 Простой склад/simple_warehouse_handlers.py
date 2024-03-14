@@ -16,7 +16,7 @@ import datetime
 db = Database()
 db.bind(
     provider="sqlite",
-    filename="//data/data/ru.travelfood.simple_ui/databases/SimpleWMS",
+    filename="//data/data/ru.travelfood.simple_ui/databases/Simple_Birds",
     create_db=True,
 )
 
