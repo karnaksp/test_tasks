@@ -16,7 +16,7 @@ import datetime
 db = Database()
 db.bind(
     provider="sqlite",
-    filename="//data/data/ru.travelfood.simple_ui/databases/Simple_Birds_1",
+    filename="//data/data/ru.travelfood.simple_ui/databases/Simple_Birds_2",
     create_db=True,
 )
 
@@ -90,8 +90,8 @@ def init_on_start(hashMap, _files=None, _data=None):
 
 def menu_input(hashMap, _files=None, _data=None):
     if hashMap.get("listener") == "menu":
-        if hashMap.get("menu") == "Список птиц":
-            hashMap.put("ShowScreen", "Список птиц")
+        if hashMap.get("menu") == "СписокПтиц":
+            hashMap.put("ShowScreen", "СписокПтиц")
         if hashMap.get("menu") == "Группы":
             hashMap.put("ShowScreen", "Группы")
         if hashMap.get("menu") == "Ячейки":
