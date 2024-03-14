@@ -90,12 +90,12 @@ def init_on_start(hashMap, _files=None, _data=None):
 
 def menu_input(hashMap, _files=None, _data=None):
     if hashMap.get("listener") == "menu":
-        if hashMap.get("menu") == "СписокПтиц":
-            hashMap.put("ShowScreen", "СписокПтиц")
-        if hashMap.get("menu") == "Создание новой птицы":
-            hashMap.put("ShowScreen", "Создание новой птицы")
-        if hashMap.get("menu") == "Карточка птицы":
-            hashMap.put("ShowScreen", "Карточка птицы")
+        if hashMap.get("menu") == "Единицы":
+            hashMap.put("ShowScreen", "Единицы")
+        if hashMap.get("menu") == "Группы":
+            hashMap.put("ShowScreen", "Группы")
+        if hashMap.get("menu") == "Ячейки":
+            hashMap.put("ShowScreen", "Ячейки")
         elif hashMap.get("menu") == "Товары":
             hashMap.put("ShowScreen", "Товары")
     elif hashMap.get("listener") == "ON_BACK_PRESSED":
