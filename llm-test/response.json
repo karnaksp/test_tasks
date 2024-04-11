@@ -1,0 +1,27 @@
+{
+    "response": "The context does not indicate specific temperature preferences for forest seed-eating birds and other species.",
+    "paragraph0": {
+        "content": "None of the three groups have kept pace with temperature changes across their ranges. Despite signiﬁcant northward shifts at their range margins, mean annual temperature at the north ern range margin of resident species has increased at a rate of 0.007◦/y (95% CI = 0.002 to 0.011). The rate of temperature change at the northern range margin of migratory species was even greater (temperate wintering migrants, 0.021◦/y, 95% CI = 0.017 to 0.024; neotropical migrants, 0.023◦/y, 95% CI = 0.019 to 0.029). Along their southern range margins, residents have experienced a temperature increase of 0.013◦/y (95% CI = 0.009 to 0.017) compared to 0.016◦/y (95% CI = 0.013 to 0.018) for neotropical migrants and 0.032◦/y (95% CI = 0.028 to 0.035) for temperate wintering migrants",
+        "src": {
+            "file_path": "./data/birds in responce climat.pdf",
+            "file_name": "birds in responce climat.pdf",
+            "page_number": "3"
+        }
+    },
+    "paragraph1": {
+        "content": "the mean annual temperature for all cells within each species breeding range at the estimated latitude for each species/index. We then took the mean temperature of those cells as an estimate of the climate conditions that each species experienced at a given latitudinal index in each year. As for the composite indices described above, we next scaled the annual tempera ture indices by subtracting the initial temperature and then took the mean temperature indices for all species within a given focal groups (all species, long distance migrants, and resident/short distance migrants). Finally, we regressed the mean temperature values against year to determine the rate of climate change experienced by each group at each index. If groups tracked conditions to maintain a constant climate niche, we expected the slope from these models to be 0, whereas if climate changed faster than species distributions, we expected a positive slope. As for range shifts, we ﬁt these models for each posterior trajectory of 43 yearly values and sum marize the results using the mean and 2.5/97.5% quantiles. We considered 95% CIs that did not include 0 as evidence that climate conditions shifted faster than range indices",
+        "src": {
+            "file_path": "./data/birds in responce climat.pdf",
+            "file_name": "birds in responce climat.pdf",
+            "page_number": "6"
+        }
+    },
+    "paragraph2": {
+        "content": "We predicted that after controlling for the effects of body size and population trend, the northern leading range mar gins of resident species would be shifting northward at a faster rate than that of neotropical migratory species because warming temperatures should relax winter limitation of resi dents, allowing peripheral populations to grow and expand into newly suitable habitat. Relaxation of winter limitation should also beneﬁt migratory species that winter in North Amer ica (hereafter temperate wintering migrants), allowing these species to expand their northern margins in a similar fash ion to residents. Northern populations of neotropical migrants, in contrast, may be constrained in their ability to expand northward by increased migration distance and decreasing win ter habitat quality (29, 30). Trailing range margins, on the other hand, have generally been found to be more stable than northern margins (31, 32), and therefore, we predicted that neither migrants nor residents would show evidence of",
+        "src": {
+            "file_path": "./data/birds in responce climat.pdf",
+            "file_name": "birds in responce climat.pdf",
+            "page_number": "2"
+        }
+    }
+}

@@ -1,0 +1,38 @@
+data_path: ./data/
+index_path: ./data/index/
+repo_name: IlyaGusev/saiga_mistral_7b_gguf
+model_name: model-q4_K.gguf
+model_path: ./models/llm/model-q4_K.gguf
+
+model_params:
+  max_length: 256
+  max_context: 2048
+  n_parts: 1
+  seed: 1337
+  f16_kv: True
+  use_mmap: True
+  n_threads: None
+  n_batch: 256
+  n_gpu_layers: 100
+  last_n_tokens_size: 64
+  verbose: True
+
+system_prompt: |
+               [INST]
+               Using the information contained in the context, answer the question (using a maximum of two sentences).
+               If the answer cannot be deduced from the context, answer \"I don't know.\"
+               Context: {join(documents)};
+               Question: {query}
+               [/INST]
+
+system_token: 1788
+user_token: 1404
+assistant_token: 9225
+linebreak_token: 13
+max_new_tokens: 1500
+
+top_k: 15
+top_p: 0.6
+temp: 0.2
+embeddings_repo: intfloat/multilingual-e5-large
+embeddings_path: ./models/embed/
