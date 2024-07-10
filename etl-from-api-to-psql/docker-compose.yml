@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: test_api
+      POSTGRES_USER: karnaksp
+      POSTGRES_PASSWORD: a1s2s3
+    ports:
+      - "5432:5432"
